@@ -295,6 +295,38 @@ $('#setZoom').addEventListener('input', (e) => {
 });
 $('#btnMute').addEventListener('click', () => setMuted(!settings.muted));
 
+// Just the scene: hide every control so the room can play as a backdrop
+// with its music. A click or any key brings the controls back.
+{
+  const veil = $('#sceneVeil');
+  let wakeTimer = 0, since = 0;
+  const wake = () => {
+    veil.classList.add('awake');
+    clearTimeout(wakeTimer);
+    wakeTimer = setTimeout(() => veil.classList.remove('awake'), 2500);
+  };
+  const exit = () => {
+    if (veil.hidden) return;
+    veil.hidden = true; clearTimeout(wakeTimer); veil.classList.remove('awake');
+    body.classList.remove('scene-only');
+  };
+  $('#btnScene').addEventListener('click', (e) => {
+    e.stopPropagation();
+    closePopovers(); closePanels();
+    if (document.activeElement) document.activeElement.blur();
+    body.classList.add('scene-only');
+    veil.hidden = false; since = performance.now();
+    wake();
+  });
+  veil.addEventListener('pointermove', wake);
+  veil.addEventListener('click', () => { if (performance.now() - since > 300) exit(); });
+  // capture first, so the key only brings the controls back and does nothing else
+  addEventListener('keydown', (e) => {
+    if (veil.hidden || e.metaKey || e.ctrlKey || e.altKey) return;
+    e.preventDefault(); e.stopImmediatePropagation(); exit();
+  }, true);
+}
+
 // Full screen hides the browser's tabs and window frame. iPhones don't allow
 // it for pages, so the button only shows where it works.
 {
