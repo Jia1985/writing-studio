@@ -294,6 +294,34 @@ $('#setZoom').addEventListener('input', (e) => {
   body.classList.add('no-anim'); scene.layout(); requestAnimationFrame(() => body.classList.remove('no-anim')); persist(); syncUi();
 });
 $('#btnMute').addEventListener('click', () => setMuted(!settings.muted));
+
+// Full screen hides the browser's tabs and window frame. iPhones don't allow
+// it for pages, so the button only shows where it works.
+{
+  const root = document.documentElement;
+  const btn = $('#btnFull');
+  const enter = root.requestFullscreen || root.webkitRequestFullscreen;
+  const leave = document.exitFullscreen || document.webkitExitFullscreen;
+  const current = () => document.fullscreenElement || document.webkitFullscreenElement;
+  if (enter && (document.fullscreenEnabled || document.webkitFullscreenEnabled)) {
+    btn.hidden = false;
+    const sync = () => {
+      const on = !!current();
+      btn.setAttribute('aria-pressed', String(on));
+      btn.title = on ? 'Leave full screen' : 'Full screen';
+      btn.setAttribute('aria-label', btn.title);
+    };
+    btn.addEventListener('click', () => {
+      try {
+        const p = current() ? leave.call(document) : enter.call(root);
+        if (p && p.catch) p.catch(() => {});
+      } catch { /* the browser refused; nothing to undo */ }
+    });
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    sync();
+  }
+}
 $('#musicToggle').addEventListener('click', () => setMusic(!settings.musicOn));
 $('#musicNext').addEventListener('click', () => setTrack(settings.track + 1));
 $('#setTrack').addEventListener('change', (e) => setTrack(+e.target.value));
