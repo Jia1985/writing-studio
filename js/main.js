@@ -308,6 +308,9 @@ $('#btnMute').addEventListener('click', () => setMuted(!settings.muted));
     const sync = () => {
       const on = !!current();
       btn.setAttribute('aria-pressed', String(on));
+      // set here as well as in the CSS, so an old cached style sheet can't show both
+      btn.querySelector('.enter').style.display = on ? 'none' : 'block';
+      btn.querySelector('.leave').style.display = on ? 'block' : 'none';
       btn.title = on ? 'Leave full screen' : 'Full screen';
       btn.setAttribute('aria-label', btn.title);
     };
