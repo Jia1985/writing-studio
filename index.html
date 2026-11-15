@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Writing Studio</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="view-room mode-typing booting">
+
+<!-- ───────────── Scene ───────────── -->
+<div id="viewport">
+  <div id="stage">
+    <img class="bg" src="assets/room.webp" alt="" draggable="false">
+
+    <!-- the seaside café's moving sea and gulls, painted straight onto the picture -->
+    <canvas id="lifeCanvas" aria-hidden="true"></canvas>
+    <!-- the old library's sunbeams, falling leaves, ivy and clock -->
+    <canvas id="libLeft" aria-hidden="true"></canvas>
+    <canvas id="libRight" aria-hidden="true"></canvas>
+    <!-- the reading room: fire, lights, the dogs breathing; the book; the hourglass -->
+    <canvas id="hearthCanvas" aria-hidden="true"></canvas>
+    <canvas id="bookPlate" aria-hidden="true"></canvas>
+    <div id="book" aria-live="polite">
+      <div class="bpage" data-side="L"><div class="bp-in"></div></div>
+      <div class="bpage" data-side="R"><div class="bp-in"></div></div>
+    </div>
+    <canvas id="glassCanvas" aria-hidden="true"></canvas>
+
+    <!-- window: weather tint + particles -->
+    <div class="pane pane1"><div class="sky"></div></div>
+    <div class="pane pane2"><div class="sky"></div></div>
+    <div class="pane pane3"><div class="sky"></div></div>
+    <canvas id="weatherCanvas" width="588" height="408"></canvas>
+
+    <!-- curtains -->
+    <canvas id="curtainCanvas" aria-hidden="true"></canvas>
+
+    <!-- record and tonearm sit under the room lighting -->
+    <div class="vinyl" aria-hidden="true"><div class="disc"></div></div>
+    <canvas id="armCanvas" aria-hidden="true"></canvas>
+
+    <!-- light -->
+    <div class="light light-day"></div>
+    <div class="light light-cool"></div>
+    <div class="light light-dark"></div>
+    <div class="lamp-cap"></div>
+    <div class="light lamp-glow"></div>
+    <div class="fire"></div>
+
+    <canvas id="steamCanvas" width="110" height="170"></canvas>
+
+    <div class="led" aria-hidden="true"></div>
+
+    <!-- where there is no typewriter, the typed sheet lies on the table -->
+    <div class="type-mat" aria-hidden="true"></div>
+
+    <!-- typewriter paper: real, editable text -->
+    <div id="paper">
+      <div class="sheet">
+        <div class="clip">
+          <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off"
+            aria-label="Typewriter page" placeholder="Begin typing…"></textarea>
+          <div id="mirror" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+    <div class="strike" aria-hidden="true"></div>
+    <div id="keys" aria-hidden="true"></div>
+
+    <div class="mini-sheet" aria-hidden="true"></div>
+
+    <!-- hotspots -->
+    <button class="hotspot" id="hsLamp" data-label="Desk lamp" aria-label="Desk lamp controls"></button>
+    <button class="hotspot" id="hsWindow" data-label="Window &amp; weather" aria-label="Window, curtains and weather"></button>
+    <button class="hotspot" id="hsPlayer" data-label="Record player" aria-label="Record player controls"></button>
+    <button class="hotspot" id="hsTypewriter" data-label="Typewriter" aria-label="Write on the typewriter"></button>
+    <button class="hotspot" id="hsPen" data-label="Fountain pen" aria-label="Write by hand with the fountain pen"></button>
+    <button class="hotspot" id="hsGlass" data-label="Hourglass · 40 min" aria-label="Hourglass: turn it over for a 40-minute timer"></button>
+    <button class="hotspot" id="hsArm" data-label="Tonearm" aria-label="Tonearm: drag onto the record to play, lift it off to stop"></button>
+  </div>
+  <div class="vignette"></div>
+</div>
+
+<!-- ───────────── Handwriting desk ───────────── -->
+<div id="desk" aria-hidden="true">
+  <div class="ink-sheet" id="inkSheet">
+    <canvas id="inkCanvas" aria-hidden="true"></canvas>
+    <div class="hand" id="hand">
+      <div class="hand-clip">
+        <div id="handLayer" aria-hidden="true"></div>
+        <textarea id="handEditor" spellcheck="false" autocapitalize="off" autocomplete="off"
+          aria-label="Handwritten page" placeholder="Type, and the pen will write…"></textarea>
+      </div>
+    </div>
+  </div>
+  <div id="penCursor" aria-hidden="true">
+    <svg viewBox="0 0 40 160" width="40" height="160">
+      <defs>
+        <linearGradient id="pg" x1="0" x2="1"><stop offset="0" stop-color="#2a1616"/><stop offset=".45" stop-color="#7a3a34"/><stop offset="1" stop-color="#1c0d0f"/></linearGradient>
+        <linearGradient id="gg" x1="0" x2="1"><stop offset="0" stop-color="#8a6a3a"/><stop offset=".5" stop-color="#f1d9a6"/><stop offset="1" stop-color="#7a5a2e"/></linearGradient>
+      </defs>
+      <path d="M20 0 L26 22 L20 30 L14 22 Z" fill="url(#gg)"/>
+      <path d="M20 4 L20 22" stroke="#4a3a20" stroke-width=".8"/>
+      <rect x="13" y="28" width="14" height="10" rx="2" fill="url(#gg)"/>
+      <rect x="11" y="38" width="18" height="118" rx="8" fill="url(#pg)"/>
+      <rect x="11" y="92" width="18" height="5" fill="url(#gg)"/>
+    </svg>
+  </div>
+</div>
+
+<!-- ───────────── Chrome ───────────── -->
+<header class="chrome top">
+  <div class="group left">
+    <button class="icon-btn" id="btnLibrary" aria-label="Your writing" title="Your writing">
+      <svg viewBox="0 0 24 24"><path d="M5 4h4v16H5zM10.5 4h4v16h-4zM16.2 5.2l3.8-1 3 14.6-3.8 1z" transform="scale(.86) translate(1 2)"/></svg>
+    </button>
+    <button class="icon-btn" id="btnPlaces" aria-label="Change where you write" aria-haspopup="dialog" title="Places">
+      <svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" d="M12 21s-6.5-6.1-6.5-11A6.5 6.5 0 0112 3.5 6.5 6.5 0 0118.5 10c0 4.9-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    </button>
+    <input id="titleInput" class="title-input" type="text" maxlength="80" aria-label="Title" placeholder="Untitled">
+    <span id="saveStatus" class="save-status" role="status" aria-live="polite">Saved</span>
+  </div>
+  <div class="group center">
+    <div class="segmented" role="radiogroup" aria-label="Writing mode" id="modeSwitch">
+      <button role="radio" data-mode="typing" aria-checked="true">Typing</button>
+      <button role="radio" data-mode="writing" aria-checked="false">Writing</button>
+      <button role="radio" data-mode="reading" aria-checked="false">Reading</button>
+    </div>
+  </div>
+  <div class="group right">
+    <button class="pill timer-chip" id="timerChip" hidden aria-label="Hourglass timer"><span class="glass-ico" aria-hidden="true">⧗</span> <span id="timerText">40:00</span></button>
+    <button class="icon-btn" id="btnMute" aria-label="Mute all sound" aria-pressed="false" title="Mute all">
+      <svg viewBox="0 0 24 24" class="on"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="wave" d="M15 9.2a4 4 0 010 5.6M17.4 7a7 7 0 010 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <button class="icon-btn" id="btnSettings" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="9" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="17" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    </button>
+  </div>
+</header>
+
+<footer class="chrome bottom">
+  <!-- room -->
+  <div class="bar room-bar">
+    <span class="hint" id="roomHint">Click the typewriter to begin</span>
+    <button class="pill" id="btnFocus">Focus</button>
+  </div>
+  <!-- typing focus -->
+  <div class="bar type-bar">
+    <button class="icon-btn sm" id="pagePrev" aria-label="Previous page">‹</button>
+    <span class="page-label" id="pageLabel">Page 1 of 1</span>
+    <button class="icon-btn sm" id="pageNext" aria-label="Next page">›</button>
+    <span class="sep"></span>
+    <button class="icon-btn sm" id="zoomOut" aria-label="Zoom out">−</button>
+    <span class="page-label" id="zoomLabel">100%</span>
+    <button class="icon-btn sm" id="zoomIn" aria-label="Zoom in">+</button>
+    <span class="sep"></span>
+    <button class="pill" id="btnRoomA">Room <kbd>Esc</kbd></button>
+  </div>
+  <!-- handwriting focus -->
+  <div class="bar ink-bar">
+    <span class="hint">Type — the pen writes</span>
+    <span class="sep"></span>
+    <button class="icon-btn sm" id="inkPrev" aria-label="Previous page">‹</button>
+    <span class="page-label" id="inkLabel">Page 1 of 1</span>
+    <button class="icon-btn sm" id="inkNext" aria-label="Next page">›</button>
+    <span class="sep"></span>
+    <button class="pill" id="btnRoomB">Room <kbd>Esc</kbd></button>
+  </div>
+  <!-- reading -->
+  <div class="bar read-bar">
+    <button class="icon-btn sm" id="readPrev" aria-label="Previous pages">‹</button>
+    <span class="page-label" id="readLabel">Pages 1–2 of 2</span>
+    <button class="icon-btn sm" id="readNext" aria-label="Next pages">›</button>
+    <span class="sep"></span>
+    <button class="icon-btn sm" id="readOut" aria-label="Zoom out">−</button>
+    <button class="icon-btn sm" id="readIn" aria-label="Zoom in">+</button>
+    <span class="sep"></span>
+    <button class="pill" id="btnRoomC">Room <kbd>Esc</kbd></button>
+  </div>
+</footer>
+
+<!-- contextual popovers -->
+<div class="popover" id="popLamp" role="dialog" aria-label="Desk lamp">
+  <div class="pop-title" id="lampTitle">Desk lamp</div>
+  <label class="row"><span>Light</span><button class="toggle" id="lampToggle" role="switch" aria-checked="true" aria-label="Lamp on"></button></label>
+  <label class="row col"><span>Brightness</span><input type="range" id="lampRange" min="0.15" max="1" step="0.01"></label>
+</div>
+
+<div class="popover" id="popWindow" role="dialog" aria-label="Window">
+  <div class="pop-title">Window</div>
+  <label class="row study-only"><span>Curtains open</span><button class="toggle" id="curtainToggle" role="switch" aria-checked="true" aria-label="Curtains open"></button></label>
+  <label class="row"><span class="wx-sound-label">Rain sound</span><button class="toggle" id="wxSoundToggle" role="switch" aria-checked="true" aria-label="Weather sound"></button></label>
+  <div class="segmented sm full" role="radiogroup" aria-label="Weather" data-setting="weather">
+    <button role="radio" data-value="rainy">Rainy</button>
+    <button role="radio" data-value="snowy">Snowy</button>
+    <button role="radio" data-value="sunny">Sunny</button>
+    <button role="radio" data-value="dusk" hidden>Sunset</button>
+  </div>
+</div>
+
+<div class="popover" id="popPlayer" role="dialog" aria-label="Record player">
+  <div class="pop-title" id="playerTitle">Now on the turntable</div>
+  <div class="track"><div class="track-name" id="trackName">Midnight Rain</div><div class="track-meta" id="trackMeta">Side A · 1 of 3</div></div>
+  <div class="transport">
+    <button class="pill gold" id="musicToggle" aria-pressed="false">Play</button>
+    <button class="pill" id="musicNext">Next record</button>
+  </div>
+  <label class="row col"><span>Volume</span><input type="range" id="musicVol" min="0" max="1" step="0.01"></label>
+  <label class="row"><span>Vinyl crackle</span><button class="toggle" id="crackleToggle" role="switch" aria-checked="false" aria-label="Vinyl crackle"></button></label>
+</div>
+
+<div class="popover" id="popGlass" role="dialog" aria-label="Hourglass">
+  <div class="pop-title">Hourglass</div>
+  <div class="track"><div class="track-name" id="glassLeft">40:00</div><div class="track-meta" id="glassMeta">Turn it over for forty minutes</div></div>
+  <div class="transport">
+    <button class="pill gold" id="glassTurn">Turn over</button>
+    <button class="pill" id="glassStop">Lay it down</button>
+  </div>
+</div>
+
+<div class="popover" id="popPlaces" role="dialog" aria-label="Places">
+  <div class="pop-title">Where to write</div>
+  <div class="places" id="placeList"></div>
+</div>
+
+<!-- settings -->
+<aside class="panel" id="settingsPanel" aria-label="Settings" aria-hidden="true">
+  <div class="panel-head"><h2>Studio</h2><button class="icon-btn sm" data-close aria-label="Close settings">×</button></div>
+  <div class="panel-body">
+    <section>
+      <h3>Writing</h3>
+      <div class="segmented full" role="radiogroup" aria-label="Writing mode" data-setting="mode">
+        <button role="radio" data-value="typing">Typing</button>
+        <button role="radio" data-value="writing">Writing</button>
+        <button role="radio" data-value="reading">Reading</button>
+      </div>
+    </section>
+    <section>
+      <h3>Camera</h3>
+      <div class="segmented full" role="radiogroup" aria-label="View" data-setting="view">
+        <button role="radio" data-value="room">Room</button>
+        <button role="radio" data-value="focus">Focus</button>
+      </div>
+      <label class="row col"><span>Zoom <em id="setZoomVal"></em></span><input type="range" id="setZoom" min="0" max="1" step="0.01"></label>
+    </section>
+    <section>
+      <h3>Lighting</h3>
+      <label class="row"><span id="setLampLabel">Desk lamp</span><button class="toggle" id="setLampOn" role="switch" aria-label="Desk lamp"></button></label>
+      <label class="row col"><span>Brightness</span><input type="range" id="setLamp" min="0.15" max="1" step="0.01"></label>
+    </section>
+    <section>
+      <h3>Window</h3>
+      <div class="segmented full" role="radiogroup" aria-label="Weather" data-setting="weather">
+        <button role="radio" data-value="rainy">Rainy</button>
+        <button role="radio" data-value="snowy">Snowy</button>
+        <button role="radio" data-value="sunny">Sunny</button>
+        <button role="radio" data-value="dusk" hidden>Sunset</button>
+      </div>
+      <label class="row study-only"><span>Curtains open</span><button class="toggle" id="setCurtains" role="switch" aria-label="Curtains open"></button></label>
+      <label class="row"><span class="wx-sound-label">Rain sound</span><button class="toggle" id="setWxSound" role="switch" aria-label="Weather sound"></button></label>
+    </section>
+    <section>
+      <h3>Music</h3>
+      <label class="row"><span>Record player</span><button class="toggle" id="setMusicOn" role="switch" aria-label="Record player"></button></label>
+      <label class="row col"><span>Record</span>
+        <select id="setTrack"></select>
+      </label>
+    </section>
+    <section>
+      <h3>Sound</h3>
+      <label class="row col"><span>Master</span><input type="range" data-vol="master" min="0" max="1" step="0.01"></label>
+      <label class="row col"><span>Writing sounds</span><input type="range" data-vol="writing" min="0" max="1" step="0.01"></label>
+      <label class="row col"><span>Room ambience</span><input type="range" data-vol="room" min="0" max="1" step="0.01"></label>
+      <label class="row col"><span>Weather</span><input type="range" data-vol="weather" min="0" max="1" step="0.01"></label>
+      <label class="row col"><span>Music</span><input type="range" data-vol="music" min="0" max="1" step="0.01"></label>
+      <label class="row"><span>Mute all</span><button class="toggle" id="setMute" role="switch" aria-label="Mute all"></button></label>
+    </section>
+    <section>
+      <h3>Motion</h3>
+      <label class="row"><span>Reduce motion</span><button class="toggle" id="setReduce" role="switch" aria-label="Reduce motion"></button></label>
+    </section>
+    <section>
+      <h3>Workspace</h3>
+      <label class="row"><span>Remember my room</span><button class="toggle" id="setRemember" role="switch" aria-label="Remember my room"></button></label>
+      <p class="note">Your writing stays in this browser on this computer. Nothing is uploaded.</p>
+    </section>
+  </div>
+</aside>
+
+<!-- library -->
+<aside class="panel left" id="libraryPanel" aria-label="Your writing" aria-hidden="true">
+  <div class="panel-head"><h2>Your writing</h2><button class="icon-btn sm" data-close aria-label="Close">×</button></div>
+  <div class="panel-body">
+    <button class="pill gold full" id="newWork">New piece</button>
+    <ul class="works" id="workList"></ul>
+    <section>
+      <h3>Export this piece</h3>
+      <div class="export">
+        <button class="pill" id="exTxt">Typed text (.txt)</button>
+        <button class="pill" id="exPng">Handwritten page (.png)</button>
+        <button class="pill" id="exPdf">All handwriting (.pdf)</button>
+      </div>
+      <p class="note" id="exportNote"></p>
+    </section>
+  </div>
+</aside>
+
+<div class="scrim" id="scrim"></div>
+<div id="veil" aria-hidden="true"><span id="veilName"></span></div>
+
+<!-- intro -->
+<div id="intro">
+  <div class="intro-card">
+    <div class="orn">✦</div>
+    <h1>The Writing Studio</h1>
+    <p id="introLine">A private room, high above the city, for your words.</p>
+    <button class="pill gold lg" id="enterBtn">Enter the studio</button>
+    <small>Sound begins when you enter.</small>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

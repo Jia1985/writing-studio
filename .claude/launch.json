@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "writing-studio",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/emmawang/Desktop/Project/Writing Vibe/server.js"],
+      "port": 5178
+    }
+  ]
+}
