@@ -23,7 +23,8 @@ export function createScene(settings) {
   };
   // the study's curtains and tonearm are woven from its own painting
   const studyImg = new Image(); studyImg.src = PLACES.study.img;
-  const state = { view: 'room', caretY: 120, paperTop: 362, scroll: 0, scrollMax: 0 };
+  const state = { view: 'room', caretY: 120, paperTop: 362, scroll: 0, scrollMax: 0, readSide: 'L' };
+  const narrowRead = () => innerWidth < innerHeight * 1.05 && !!place.readPages;
 
   // ── camera ───────────────────────────────────────────────────────────
   // frames the typing line, the platen and the whole keyboard
@@ -33,8 +34,9 @@ export function createScene(settings) {
     if (state.view === 'room') {
       s = cover * settings.roomZoom; cx = 836; cy = 470 + (settings.roomZoom - 1) * 70;
     } else if (place.reader) {
-      // reading: the open book, as large as the window allows
-      const r = place.readRect;
+      // reading: the open book, as large as the window allows (on a tall,
+      // narrow screen, the page being read)
+      const r = narrowRead() ? place.readPages[state.readSide] : place.readRect;
       s = Math.max(cover, Math.min(vw / r.w, vh / r.h) * settings.focusZoom);
       cx = r.x + r.w / 2; cy = r.y + r.h / 2;
     } else if (settings.mode === 'typing') {
@@ -655,5 +657,8 @@ export function createScene(settings) {
 
   function hotspotRect(id) { return document.getElementById(id).getBoundingClientRect(); }
 
-  return { setPlace, turnGlass, get place() { return place; }, get paper() { return paperOf(); }, wxKind, layout, setView, setCaretY, scrollPaper, followCaret, applyLight, applyWeather, applyCurtains, setPlaying, moveArm, cueArm, onArm(fn) { armHook = fn; }, armInfo, keyDown, keyUp, keyTap, releaseKeys, typeStrike, hotspotRect, get view() { return state.view; } };
+  return {
+    setPlace, turnGlass, get place() { return place; },
+    get narrowRead() { return narrowRead(); },
+    readSide(side) { if (side) { state.readSide = side; if (state.view === 'focus') layout(); } return state.readSide; }, get paper() { return paperOf(); }, wxKind, layout, setView, setCaretY, scrollPaper, followCaret, applyLight, applyWeather, applyCurtains, setPlaying, moveArm, cueArm, onArm(fn) { armHook = fn; }, armInfo, keyDown, keyUp, keyTap, releaseKeys, typeStrike, hotspotRect, get view() { return state.view; } };
 }

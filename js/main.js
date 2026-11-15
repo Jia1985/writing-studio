@@ -38,13 +38,36 @@ const reader = createReader({
   onFlip: (sec) => audio.pageFlip(sec),
   reduceMotion: () => settings.reduceMotion,
   onTurn(s, n, pages) {
-    const a = s * 2 + 1, b = Math.min(pages, a + 1);
-    $('#readLabel').textContent = a === b ? `Page ${a} of ${pages}` : `Pages ${a}–${b} of ${pages}`;
-    $('#readPrev').disabled = s === 0; $('#readNext').disabled = s >= n - 1;
+    readPos = { s, n, pages }; readLabel();
     if (settings.bookAt !== s) { settings.bookAt = s; persist(); }
   },
+  onPage: (side) => readTurn(side === 'R' ? 1 : -1),
 });
-function readTurn(d) { reader.turn(d); }
+let readPos = { s: 0, n: 1, pages: 2 };
+function readLabel() {
+  const { s, n, pages } = readPos, a = s * 2 + 1, b = Math.min(pages, a + 1);
+  if (scene.narrowRead) {
+    // one page at a time on a phone held upright
+    const side = scene.readSide(), p = side === 'L' ? a : b;
+    $('#readLabel').textContent = `Page ${p} of ${pages}`;
+    $('#readPrev').disabled = s === 0 && side === 'L'; $('#readNext').disabled = s >= n - 1 && side === 'R';
+    return;
+  }
+  $('#readLabel').textContent = a === b ? `Page ${a} of ${pages}` : `Pages ${a}–${b} of ${pages}`;
+  $('#readPrev').disabled = s === 0; $('#readNext').disabled = s >= n - 1;
+}
+// On a wide screen both pages are in view and every step turns the leaf. On a
+// narrow one, reading on goes from the left page across to the right, and
+// from the right page the leaf turns and the view comes back to the left.
+function readTurn(d) {
+  if (!scene.narrowRead) return reader.turn(d);
+  const side = scene.readSide();
+  if (d > 0 && side === 'L') scene.readSide('R');
+  else if (d < 0 && side === 'R') scene.readSide('L');
+  else if (reader.turn(d)) setTimeout(() => { scene.readSide(d > 0 ? 'L' : 'R'); readLabel(); }, 420);
+  readLabel();
+}
+addEventListener('resize', readLabel);
 $('#readPrev').addEventListener('click', () => readTurn(-1));
 $('#readNext').addEventListener('click', () => readTurn(1));
 $('#readIn').addEventListener('click', () => { settings.focusZoom = clamp(settings.focusZoom + 0.1, 0.8, 1.7); persist(); scene.layout(); });

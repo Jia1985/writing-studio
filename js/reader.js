@@ -33,7 +33,7 @@ function toQuad(q, w, h) {
   return `matrix3d(${m.map((v) => +v.toFixed(8)).join(',')})`;
 }
 
-export function createReader({ src, onTurn, onFlip, reduceMotion, startAt = 0 }) {
+export function createReader({ src, onTurn, onFlip, onPage, reduceMotion, startAt = 0 }) {
   const stage = document.querySelector('#stage');
   const plate = document.querySelector('#bookPlate'), book = document.querySelector('#book');
   const pages = { L: book.querySelector('[data-side=L]'), R: book.querySelector('[data-side=R]') };
@@ -254,7 +254,7 @@ export function createReader({ src, onTurn, onFlip, reduceMotion, startAt = 0 })
   }
   const TURN_MS = 780;
   // clicking the right page reads on, the left page goes back
-  for (const s of ['L', 'R']) pages[s].addEventListener('click', () => turn(s === 'R' ? 1 : -1));
+  for (const s of ['L', 'R']) pages[s].addEventListener('click', () => (onPage ? onPage(s) : turn(s === 'R' ? 1 : -1)));
 
   load();
   return {

@@ -155,6 +155,8 @@ PLACES.reading = {
   paper: { x: 675, w: 322, platen: 700, min: 402, max: 402 },   // not shown here
   typeRect: { x: 600, y: 690, w: 660, h: 251 },
   readRect: { x: 590, y: 668, w: 690, h: 273 },                   // the open book
+  // on a phone held upright there is room for one page at a time
+  readPages: { L: { x: 640, y: 700, w: 285, h: 241 }, R: { x: 936, y: 712, w: 290, h: 229 } },
   deskCam: [920, 820],
   keys: null,
   weathers: ['snowy', 'sunny'],
