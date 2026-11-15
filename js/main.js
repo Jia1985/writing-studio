@@ -4,7 +4,7 @@ import { createScene } from './scene.js';
 import { createTypewriter } from './typewriter.js';
 import { createInk } from './ink.js';
 import { PLACES, PLACE_ORDER } from './places.js';
-import { createReader } from './reader.js';
+import { createReader } from './reader.js?v=2';
 import { GLASS_MS } from './hourglass.js';
 
 const $ = (s) => document.querySelector(s);

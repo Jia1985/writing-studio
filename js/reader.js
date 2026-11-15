@@ -12,7 +12,9 @@ const QUADS = {
 };
 // a little wider than the text, to take the painted text off
 const CLEAN = {
-  L: [[652, 706], [903, 752], [918, 941], [640, 941]],
+  // the page's top edge curves down to the spine: follow it, so the little
+  // running head painted just under it goes too
+  L: [[652, 705], [740, 707], [812, 711], [870, 727], [903, 752], [918, 941], [640, 941]],
   R: [[932, 736], [1210, 744], [1248, 941], [946, 941]],
 };
 const PW = 380, PH = 300;   // a page, in its own units (before the perspective)
@@ -56,7 +58,7 @@ export function createReader({ src, onTurn, onFlip, onPage, reduceMotion, startA
     // above or below is the paper itself
     const lum = (i) => d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
     const out = new Uint8ClampedArray(d.length);
-    const RV = 6, RH = 1;
+    const RV = 11, RH = 4;   // tall enough for the painted chapter heading, not just lines of text
     for (let y = 0; y < BH; y++) for (let xx = 0; xx < BW; xx++) {
       let best = -1, bi = 0;
       for (let dy = -RV; dy <= RV; dy++) {
@@ -69,17 +71,40 @@ export function createReader({ src, onTurn, onFlip, onPage, reduceMotion, startA
       }
       const o = (y * BW + xx) * 4; out[o] = d[bi]; out[o + 1] = d[bi + 1]; out[o + 2] = d[bi + 2]; out[o + 3] = 255;
     }
-    const lifted = document.createElement('canvas'); lifted.width = BW; lifted.height = BH;
-    lifted.getContext('2d').putImageData(new ImageData(out, BW, BH), 0, 0);
-    // soften it into plain lit paper, only inside the pages (so nothing from
-    // the blanket bleeds in), then lay it over the painting with a soft edge
+    // taking the brightest pixel also spreads any bright speck into a pale
+    // patch; the darkest of those, over the same reach, brings it back down
+    // to the paper (the printed text, already gone, stays gone)
+    // (only pixels on the page count, so the dark blanket never creeps in)
     const mask = document.createElement('canvas'); mask.width = BW; mask.height = BH;
-    const mx = mask.getContext('2d'); mx.translate(-BX, -BY); mx.fillStyle = '#000';
+    const mx = mask.getContext('2d', { willReadFrequently: true }); mx.translate(-BX, -BY); mx.fillStyle = '#000';
     for (const q of Object.values(CLEAN)) { mx.beginPath(); q.forEach(([a, b], i) => (i ? mx.lineTo(a, b) : mx.moveTo(a, b))); mx.closePath(); mx.fill(); }
+    const ma = mx.getImageData(0, 0, BW, BH).data;
+    const lum2 = (i) => out[i] * 0.3 + out[i + 1] * 0.59 + out[i + 2] * 0.11;
+    const fin = new Uint8ClampedArray(d.length);
+    for (let y = 0; y < BH; y++) for (let xx = 0; xx < BW; xx++) {
+      const o = (y * BW + xx) * 4;
+      let low = 1e9, li = o;
+      for (let dy = -RV; dy <= RV; dy++) {
+        const yy = y + dy; if (yy < 0 || yy >= BH) continue;
+        for (let dx = -RH; dx <= RH; dx++) {
+          const x2 = xx + dx; if (x2 < 0 || x2 >= BW) continue;
+          const i = (yy * BW + x2) * 4; if (ma[i + 3] < 128) continue;
+          const l = lum2(i);
+          if (l < low) { low = l; li = i; }
+        }
+      }
+      fin[o] = out[li]; fin[o + 1] = out[li + 1]; fin[o + 2] = out[li + 2]; fin[o + 3] = 255;
+    }
+    const lifted = document.createElement('canvas'); lifted.width = BW; lifted.height = BH;
+    lifted.getContext('2d').putImageData(new ImageData(fin, BW, BH), 0, 0);
+    // soften it into plain lit paper, only inside the pages, then lay it over
+    // the painting with a soft edge
     const blurIn = (cv, r) => { const t = document.createElement('canvas'); t.width = BW; t.height = BH; const tx = t.getContext('2d'); tx.filter = `blur(${r}px)`; tx.drawImage(cv, 0, 0); return t; };
     const masked = document.createElement('canvas'); masked.width = BW; masked.height = BH;
     const mk = masked.getContext('2d'); mk.drawImage(lifted, 0, 0); mk.globalCompositeOperation = 'destination-in'; mk.drawImage(mask, 0, 0);
-    const num = blurIn(masked, 3), den = blurIn(mask, 3);
+    // lamplight on paper changes slowly, so a wide blur only loses the specks
+    // and halos the painted heading leaves behind
+    const num = blurIn(masked, 7), den = blurIn(mask, 7);
     // the blurred colours come back already divided by their coverage (canvas
     // pixels are read un-premultiplied), so they are the average paper colour
     // as they are; only make them opaque
