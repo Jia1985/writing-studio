@@ -306,18 +306,31 @@ button { cursor: pointer; background: none; border: 0; padding: 0; }
   opacity: 0; transition: opacity .6s ease; pointer-events: none;
 }
 #sceneVeil.awake .scene-hint { opacity: 1; }
-/* the hourglass countdown in full screen: quiet, top right, and never in the
-   way of the click that brings the controls back */
+/* the hourglass countdown in full screen: a white ring that empties as the
+   time runs down, top right, and never in the way of the click that brings
+   the controls back */
 .scene-timer {
   position: fixed; top: calc(18px + env(safe-area-inset-top)); right: calc(22px + env(safe-area-inset-right)); z-index: 91;
-  display: none; align-items: center; gap: 6px; padding: 8px 13px; border-radius: 999px; pointer-events: none;
-  font-size: 11px; letter-spacing: .13em; text-transform: uppercase; font-variant-numeric: tabular-nums; color: var(--ink);
-  border: 1px solid var(--gold-line); background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  opacity: .72; white-space: nowrap;
+  width: 88px; height: 88px; border-radius: 50%; pointer-events: none;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(10, 6, 8, .32); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 22px rgba(0, 0, 0, .25);
 }
-.scene-timer .glass-ico { color: var(--gold); font-size: 13px; letter-spacing: 0; }
-.scene-only .scene-timer:not([hidden]) { display: inline-flex; }
-@media (max-width: 720px) { .scene-timer { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); padding: 7px 10px; } }
+.scene-timer svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+.scene-timer circle { fill: none; stroke-width: 5; }
+.scene-timer .track { stroke: rgba(255, 255, 255, .22); }
+.scene-timer .arc {
+  stroke: rgba(255, 255, 255, .95); stroke-linecap: round; stroke-dasharray: 100 100;
+  transition: stroke-dashoffset .5s linear; filter: drop-shadow(0 0 3px rgba(255, 255, 255, .35));
+}
+#sceneTimerText {
+  position: relative; color: #fff; font: 500 19px/1 var(--ui); letter-spacing: .02em; font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, .45);
+}
+.scene-timer.done #sceneTimerText { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; text-align: center; max-width: 60px; line-height: 1.25; }
+.scene-timer.done .arc { opacity: 0; }   /* (an empty dash would still leave a round dot) */
+.scene-only .scene-timer:not([hidden]) { display: flex; }
+@media (max-width: 720px) { .scene-timer { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); width: 68px; height: 68px; } #sceneTimerText { font-size: 15px; } }
 .group { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 .group.center { justify-content: center; flex: 0 0 auto; }
 .group.right { justify-content: flex-end; }

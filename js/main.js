@@ -93,8 +93,12 @@ function syncGlass() {
   chip.classList.toggle('done', done);
   $('#timerText').textContent = done ? 'Time’s up' : mmss(left);
   // the same countdown stays in view in full screen (shown only there, by the CSS)
-  $('#sceneTimer').hidden = !running && !done;
+  const ring = $('#sceneTimer');
+  ring.hidden = !running && !done;
+  ring.classList.toggle('done', done);
   $('#sceneTimerText').textContent = done ? 'Time’s up' : mmss(left);
+  // the ring is full when the glass is turned and empties as the sand runs out
+  $('#sceneTimerArc').style.strokeDashoffset = String(100 * (1 - left / GLASS_MS));
   $('#glassLeft').textContent = running ? mmss(left) : done ? 'Time’s up' : '40:00';
   $('#glassMeta').textContent = running ? 'left of forty minutes' : done ? 'The sand has run through' : 'Turn it over for forty minutes';
   $('#glassStop').disabled = !running && !done;

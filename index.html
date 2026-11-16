@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Writing Studio</title>
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body class="view-room mode-typing booting">
 
@@ -326,7 +326,10 @@
 
 <div id="sceneVeil" hidden><p class="scene-hint">Click anywhere to bring the controls back</p></div>
 <!-- the hourglass countdown, kept in view when the controls are hidden -->
-<div id="sceneTimer" class="scene-timer" hidden aria-hidden="true"><span class="glass-ico">⧗</span> <span id="sceneTimerText">40:00</span></div>
-<script type="module" src="js/main.js?v=6"></script>
+<div id="sceneTimer" class="scene-timer" hidden aria-hidden="true">
+  <svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="44"/><circle class="arc" id="sceneTimerArc" cx="50" cy="50" r="44" pathLength="100"/></svg>
+  <span id="sceneTimerText">40:00</span>
+</div>
+<script type="module" src="js/main.js?v=7"></script>
 </body>
 </html>
