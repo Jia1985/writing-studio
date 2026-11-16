@@ -295,67 +295,74 @@ $('#setZoom').addEventListener('input', (e) => {
 });
 $('#btnMute').addEventListener('click', () => setMuted(!settings.muted));
 
-// Just the scene: hide every control so the room can play as a backdrop
-// with its music. A click or any key brings the controls back.
+// Full screen does two things at once: the browser's tabs and window frame
+// go, and so do the studio's own buttons, leaving just the room and its
+// sound. A click or any key brings the buttons back (still full screen);
+// the button, or Esc, then leaves full screen. Where a page can't go full
+// screen (iPhone), the button just hides the controls.
 {
-  const veil = $('#sceneVeil');
+  const root = document.documentElement;
+  const btn = $('#btnFull'), veil = $('#sceneVeil'), hint = veil.querySelector('.scene-hint');
+  const enter = root.requestFullscreen || root.webkitRequestFullscreen;
+  const leave = document.exitFullscreen || document.webkitExitFullscreen;
+  const canFull = !!enter && !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+  const current = () => document.fullscreenElement || document.webkitFullscreenElement;
   let wakeTimer = 0, since = 0;
+
   const wake = () => {
     veil.classList.add('awake');
     clearTimeout(wakeTimer);
     wakeTimer = setTimeout(() => veil.classList.remove('awake'), 2500);
   };
-  const exit = () => {
+  const hide = () => {
+    closePopovers(); closePanels();
+    if (document.activeElement) document.activeElement.blur();
+    hint.textContent = current() || canFull
+      ? 'Click anywhere to bring the controls back · Esc leaves full screen'
+      : 'Click anywhere to bring the controls back';
+    body.classList.add('scene-only');
+    veil.hidden = false; since = performance.now();
+    wake();
+  };
+  const show = () => {
     if (veil.hidden) return;
     veil.hidden = true; clearTimeout(wakeTimer); veil.classList.remove('awake');
     body.classList.remove('scene-only');
   };
-  $('#btnScene').addEventListener('click', (e) => {
+  const sync = () => {
+    const on = !!current();
+    btn.setAttribute('aria-pressed', String(on));
+    // set here as well as in the CSS, so an old cached style sheet can't show both
+    btn.querySelector('.enter').style.display = on ? 'none' : 'block';
+    btn.querySelector('.leave').style.display = on ? 'block' : 'none';
+    btn.title = on ? 'Leave full screen' : (canFull ? 'Full screen' : 'Hide the controls');
+    btn.setAttribute('aria-label', btn.title);
+    if (!on && canFull) show();   // leaving full screen (Esc, or the browser) brings the buttons back
+  };
+
+  btn.hidden = false;
+  btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    closePopovers(); closePanels();
-    if (document.activeElement) document.activeElement.blur();
-    body.classList.add('scene-only');
-    veil.hidden = false; since = performance.now();
-    wake();
+    if (current()) {
+      try { const p = leave.call(document); if (p && p.catch) p.catch(() => {}); } catch { /* refused */ }
+      return;
+    }
+    if (canFull) {
+      try { const p = enter.call(root); if (p && p.catch) p.catch(() => {}); } catch { /* refused: still hide */ }
+    }
+    hide();
   });
   veil.addEventListener('pointermove', wake);
-  veil.addEventListener('click', () => { if (performance.now() - since > 300) exit(); });
+  veil.addEventListener('click', () => { if (performance.now() - since > 300) show(); });
   // capture first, so the key only brings the controls back and does nothing else
   addEventListener('keydown', (e) => {
     if (veil.hidden || e.metaKey || e.ctrlKey || e.altKey) return;
-    e.preventDefault(); e.stopImmediatePropagation(); exit();
+    if (e.key !== 'Escape') e.preventDefault();
+    e.stopImmediatePropagation(); show();
   }, true);
-}
-
-// Full screen hides the browser's tabs and window frame. iPhones don't allow
-// it for pages, so the button only shows where it works.
-{
-  const root = document.documentElement;
-  const btn = $('#btnFull');
-  const enter = root.requestFullscreen || root.webkitRequestFullscreen;
-  const leave = document.exitFullscreen || document.webkitExitFullscreen;
-  const current = () => document.fullscreenElement || document.webkitFullscreenElement;
-  if (enter && (document.fullscreenEnabled || document.webkitFullscreenEnabled)) {
-    btn.hidden = false;
-    const sync = () => {
-      const on = !!current();
-      btn.setAttribute('aria-pressed', String(on));
-      // set here as well as in the CSS, so an old cached style sheet can't show both
-      btn.querySelector('.enter').style.display = on ? 'none' : 'block';
-      btn.querySelector('.leave').style.display = on ? 'block' : 'none';
-      btn.title = on ? 'Leave full screen' : 'Full screen';
-      btn.setAttribute('aria-label', btn.title);
-    };
-    btn.addEventListener('click', () => {
-      try {
-        const p = current() ? leave.call(document) : enter.call(root);
-        if (p && p.catch) p.catch(() => {});
-      } catch { /* the browser refused; nothing to undo */ }
-    });
-    document.addEventListener('fullscreenchange', sync);
-    document.addEventListener('webkitfullscreenchange', sync);
-    sync();
-  }
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
 }
 $('#musicToggle').addEventListener('click', () => setMusic(!settings.musicOn));
 $('#musicNext').addEventListener('click', () => setTrack(settings.track + 1));
