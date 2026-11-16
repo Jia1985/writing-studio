@@ -12,22 +12,46 @@ const ease = (k) => -(Math.cos(Math.PI * clamp(k, 0, 1)) - 1) / 2;
 // canvas placement (stage px): room for the glass to swing over
 const CX0 = 140, CY0 = 455, CW = 330, CH = 335, K = 2;
 const NECK = [306.5, 620];                       // the waist of the glass
-const TOP_END = 102.5, BOT_END = 112.5;          // inner ends of the bulbs, from the neck
+const TOP_END = 102.5, BOT_END = 118;            // inner ends of the bulbs, from the neck
 const FULL = 74;                                 // how high the sand stands in a full top bulb
 const PIVOT = [306.5, 622];
 const FLIP_MS = 1400;
+const TILT = 0.23;                               // we look down on the glass a little: a level ring shows as an ellipse this flat
+const REPOSE = 0.55;                             // slope of the heap (rise over run)
 
-// inner half-width of the glass, d px from the neck (traced from the painting)
-// (measured on the painting at twice the stage size, hence p = 2d)
+// inner half-width of the glass, d px from the neck, traced from the painting
+// (the top is a wide cone with a domed shoulder; the bottom a pear with a
+// round foot), smoothed so the outline has no corners
+const PROFILE = {
+  top: [[0, 2.5], [10, 15], [20, 26.5], [30, 36.5], [42, 41.5], [60, 48.5], [80, 49], [90, 46.5], [97, 39], [102.5, 24]],
+  bot: [[0, 2.5], [20, 16], [40, 30.5], [60, 43], [80, 46], [90, 45.5], [100, 42], [110, 29.5], [115, 18], [117, 9], [118, 0]],
+};
+const HSTEP = 0.25, HN = Math.ceil(120 / HSTEP) + 1;
+const HW = {};
+for (const key of ['top', 'bot']) {
+  const tab = PROFILE[key];
+  const lin = (d) => { if (d <= tab[0][0]) return tab[0][1]; for (let i = 1; i < tab.length; i++) if (d <= tab[i][0]) { const [a, va] = tab[i - 1], [b, vb] = tab[i]; return va + (vb - va) * (d - a) / (b - a); } return tab[tab.length - 1][1]; };
+  let arr = Float32Array.from({ length: HN }, (_, i) => lin(i * HSTEP));
+  for (let pass = 0; pass < 3; pass++) {           // a few box blurs round off the corners of the table
+    const out = new Float32Array(HN), R = 8;
+    for (let i = 0; i < HN; i++) { let sum = 0, n = 0; for (let j = i - R; j <= i + R; j++) { sum += arr[clamp(j, 0, HN - 1)]; n++; } out[i] = sum / n; }
+    arr = out;
+  }
+  HW[key] = arr;
+}
 function hw(d, top) {
-  const p = 2 * d, R = top ? 165 : 205;
-  return Math.max(0.8, (6 + 99 * (1 - Math.exp(-Math.pow(p / 62, 1.6))) - (p > R ? (p - R) ** 2 * 0.012 : 0)) / 2);
+  const arr = top ? HW.top : HW.bot, k = clamp(d, 0, 120) / HSTEP, i = Math.floor(k), t = k - i;
+  const v = arr[Math.min(i, HN - 1)] * (1 - t) + arr[Math.min(i + 1, HN - 1)] * t;
+  return Math.max(0.8, v);
 }
 
 export function createHourglass(canvas, src) {
   const c = canvas.getContext('2d');
   canvas.width = CW * K; canvas.height = CH * K;
-  let ready = false, sprite = null, plate = null, shine = null, sandA = '#f0b3bc', sandB = '#c9808f';
+  let ready = false, sprite = null, plate = null, shine = null;
+  // the painted sand's colours (set here rather than read back from the
+  // painting: some browsers blur what a canvas reads back, to stop fingerprinting)
+  const sandLit = [248, 172, 160], sandBody = [238, 142, 126], sandDeep = [184, 92, 78];
   let flip = null, blank = true;
 
   // volume of sand (discs of the glass) from the neck out to d
@@ -77,39 +101,56 @@ export function createHourglass(canvas, src) {
     s.drawImage(img, CX0, CY0, W, H, 0, 0, W, H);
     const id = s.getImageData(0, 0, W, H), d = id.data;
     const P = (x, y) => (y * W + x) * 4;
-    // the painted sand's colours, for the sand drawn from now on
-    const avg = (x0, y0, x1, y1) => { let r = 0, g = 0, b = 0, n = 0; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = P(x - CX0, y - CY0); r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; } return [r / n, g / n, b / n].map(Math.round); };
-    const a = avg(296, 578, 318, 586), b = avg(270, 712, 285, 726);
-    sandA = `rgb(${a})`; sandB = `rgb(${b})`;
 
-    // lift the painted sand out of the glass: the empty glass shows what is
-    // above the sand in the top bulb, and what is above the heap in the bottom
-    const sandTop = (y) => y >= 563 && y <= 619, sandBot = (y) => y >= 672 && y <= 733;
+    // lift the painted sand out of the glass. Each bulb is refilled from its
+    // own clear glass just above the sand: mirrored upward, squeezed to fit,
+    // and stretched across to this row's width so the walls, the reflections
+    // and the post behind the glass carry on unbroken.
     const fill = new Uint8ClampedArray(d);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const sx = x + CX0, sy = y + CY0;
-      if (!inGlass(sx, sy) || !(sandTop(sy) || sandBot(sy))) continue;
-      // borrow the clear glass of the other bulb: mirrored across the neck and
-      // stretched to this bulb's width, it has the real reflections and the
-      // posts seen through it
-      const top = sandTop(sy);
-      const ty = top ? clamp(NECK[1] + (NECK[1] - sy), 622, 670) : 502 + (733 - sy) / 61 * 60;
-      const wHere = hw(Math.abs(sy - NECK[1]), top), wThere = hw(Math.abs(ty - NECK[1]), !top);
-      const fx = Math.round(NECK[0] + (sx - NECK[0]) * Math.min(1, (wThere - 1.5) / wHere)) - CX0;
-      const i = P(x, y), j = P(clamp(fx, 0, W - 1), Math.round(ty) - CY0);
-      const dim = top ? 1 : 0.96;
-      // ease from the real glass just above into the borrowed glass, so there is no seam
-      const seam = top ? 0 : clamp(1 - (sy - 672) / 14, 0, 1), s0 = P(x, 669 - CY0);
-      for (let ch = 0; ch < 3; ch++) fill[i + ch] = (d[j + ch] * dim) * (1 - seam) + d[s0 + ch] * seam;
+    const sample = (fx, fy, ch) => {              // bilinear read from the painting
+      const x0 = clamp(Math.floor(fx), 0, W - 2), y0 = clamp(Math.floor(fy), 0, H - 2), tx = clamp(fx - x0, 0, 1), ty = clamp(fy - y0, 0, 1);
+      const p00 = d[P(x0, y0) + ch], p10 = d[P(x0 + 1, y0) + ch], p01 = d[P(x0, y0 + 1) + ch], p11 = d[P(x0 + 1, y0 + 1) + ch];
+      return (p00 * (1 - tx) + p10 * tx) * (1 - ty) + (p01 * (1 - tx) + p11 * tx) * ty;
+    };
+    // the painted stream, from the neck down to the painted heap: the glass
+    // behind it, read across from either side (the real stream is drawn live)
+    for (let sy = 621; sy <= 680; sy++) {
+      const L = P(302 - CX0, sy - CY0), R = P(312 - CX0, sy - CY0);
+      for (let sx = 303; sx <= 311; sx++) { const t = (sx - 302) / 10, i = P(sx - CX0, sy - CY0); for (let ch = 0; ch < 3; ch++) d[i + ch] = d[L + ch] * (1 - t) + d[R + ch] * t; }
+    }
+    fill.set(d);
+    const BANDS = [
+      { top: true, y0: 563, y1: 619, s0: 562, s1: 527 },   // the top bulb's sand, refilled from the clear glass above it
+      { top: false, y0: 673, y1: 739, s0: 672, s1: 636 },  // the heap, refilled from the clear glass between it and the neck
+    ];
+    for (const band of BANDS) {
+      for (let sy = band.y0; sy <= band.y1; sy++) {
+        const k = (sy - band.y0) / (band.y1 - band.y0), ty = band.s0 + (band.s1 - band.s0) * k;
+        const gH = hw(Math.abs(sy - NECK[1]), band.top), gS = hw(Math.abs(ty - NECK[1]), band.top);
+        const dim = band.top ? 1 : 1 - 0.08 * k;        // the foot of the glass is a little darker
+        for (let sx = Math.floor(NECK[0] - gH - 3); sx <= Math.ceil(NECK[0] + gH + 3); sx++) {
+          const u = sx - NECK[0], au = Math.abs(u);
+          if (au > gH + 3) continue;
+          // inside the glass: scale to the source row's width; on the wall: keep the distance from the wall
+          const uS = au <= gH ? au * gS / gH : gS + (au - gH);
+          const fx = NECK[0] + Math.sign(u) * uS - CX0, i = P(sx - CX0, sy - CY0);
+          for (let ch = 0; ch < 3; ch++) fill[i + ch] = sample(fx, ty - CY0, ch) * dim;
+        }
+      }
     }
     const empty = document.createElement('canvas'); empty.width = W; empty.height = H;
     empty.getContext('2d').putImageData(new ImageData(fill, W, H), 0, 0);
-    // soften what was filled in
+    // soften what was filled in (only there, fading in over a few rows so there is no seam)
     const soft = document.createElement('canvas'); soft.width = W; soft.height = H;
-    const so = soft.getContext('2d'); so.filter = 'blur(1.6px)'; so.drawImage(empty, 0, 0); so.filter = 'none';
-    so.globalCompositeOperation = 'destination-in'; so.translate(-CX0, -CY0); so.fillStyle = '#000';
-    so.beginPath(); so.rect(0, 563, 1672, 57); so.rect(0, 672, 1672, 62); so.fill();
-    so.setTransform(1, 0, 0, 1, 0, 0); so.globalCompositeOperation = 'destination-in'; so.translate(-CX0, -CY0); glassPath(so, 1); so.fill();
+    const so = soft.getContext('2d'); so.filter = 'blur(0.9px)'; so.drawImage(empty, 0, 0); so.filter = 'none';
+    so.globalCompositeOperation = 'destination-in'; so.translate(-CX0, -CY0);
+    for (const band of BANDS) {
+      const g = so.createLinearGradient(0, band.y0 - 1, 0, band.y1 + 1);
+      const fade = 4 / (band.y1 - band.y0 + 2);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(fade, '#000'); g.addColorStop(1, '#000');
+      so.fillStyle = g; so.fillRect(0, band.y0 - 1, 1672, band.y1 - band.y0 + 2);
+    }
+    so.setTransform(1, 0, 0, 1, 0, 0); so.globalCompositeOperation = 'destination-in'; so.translate(-CX0, -CY0); glassPath(so, -3); so.fill();
     const ec = empty.getContext('2d'); ec.drawImage(soft, 0, 0);
 
     // the hourglass alone (frame and empty glass), to lift and turn over
@@ -117,22 +158,22 @@ export function createHourglass(canvas, src) {
     const sp = sprite.getContext('2d'); sp.scale(K, K); sp.translate(-CX0, -CY0);
     // (glass and frame are clipped one at a time: where their outlines overlap
     // they would otherwise cancel out and leave a hole)
-    sp.save(); glassPath(sp); sp.clip(); sp.drawImage(empty, CX0, CY0); sp.restore();
+    sp.save(); glassPath(sp, -3); sp.clip(); sp.drawImage(empty, CX0, CY0); sp.restore();
     sp.save(); framePath(sp); sp.clip(); sp.drawImage(empty, CX0, CY0); sp.restore();
 
-    // highlights on the glass, laid back over the sand
+    // highlights on the glass, laid back over the sand: bright, colourless
+    // streaks in the empty glass are reflections
+    const ed = ec.getImageData(0, 0, W, H).data;
     shine = document.createElement('canvas'); shine.width = W; shine.height = H;
     const sh = shine.getContext('2d'), sd = sh.createImageData(W, H);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const sx = x + CX0, sy = y + CY0; if (!inGlass(sx, sy)) continue;
-      const i = P(x, y), l = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11, sat = Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]);
-      // bright, colourless streaks are reflections in the glass
-      const edge = Math.abs(sx - NECK[0]) > hw(Math.abs(sy - NECK[1]), sy < NECK[1]) - 7;
-      // (the pale pink of the painted sand is not a reflection: red runs well above green there)
-      const pink = d[i] - d[i + 1] > 16 || sandTop(sy) && !edge || sandBot(sy) && !edge;
-      if (l > 205 && sat < 40 && !pink) { sd.data[i] = 255; sd.data[i + 1] = 248; sd.data[i + 2] = 240; sd.data[i + 3] = clamp((l - 195) * 4, 0, 200) * (edge ? 1 : 0.7); }
+      const i = P(x, y), l = ed[i] * 0.3 + ed[i + 1] * 0.59 + ed[i + 2] * 0.11, sat = Math.max(ed[i], ed[i + 1], ed[i + 2]) - Math.min(ed[i], ed[i + 1], ed[i + 2]);
+      const g = hw(Math.abs(sy - NECK[1]), sy < NECK[1]), edge = Math.abs(sx - NECK[0]) > g - 7;
+      if (l > 200 && sat < 60) { sd.data[i] = 255; sd.data[i + 1] = 248; sd.data[i + 2] = 240; sd.data[i + 3] = clamp((l - 190) * 3.5, 0, 190) * (edge ? 1 : 0.6); }
     }
     sh.putImageData(sd, 0, 0);
+    { const b2 = document.createElement('canvas'); b2.width = W; b2.height = H; const bx = b2.getContext('2d'); bx.filter = 'blur(0.6px)'; bx.drawImage(shine, 0, 0); shine = b2; }
 
     // what is behind the hourglass, for the moment it is lifted to turn over
     plate = document.createElement('canvas'); plate.width = W; plate.height = H;
@@ -158,46 +199,139 @@ export function createHourglass(canvas, src) {
   }
 
   // ── sand ─────────────────────────────────────────────────────────────
-  // f: the share of the sand still in the top bulb
-  function drawSand(x, f, running, t) {
+  // The sand is a solid of revolution inside the glass: in the top bulb a
+  // level that sinks into a funnel over the neck as it drains, in the bottom a
+  // cone heaped up under the stream. Seen from a little above, each level
+  // ring is an ellipse; every pixel is shaded from the surface it shows, with
+  // a fine grain, and goes a little clear where it meets the glass.
+  const BX = Math.floor(NECK[0] - 56), BY = Math.floor(NECK[1] - TOP_END - 2), BW = 112, BH = Math.ceil(TOP_END + BOT_END + 4);
+  const hash = (a, b) => { let h = (a * 374761393 + b * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
+  const smooth = (e0, e1, v) => { const k = clamp((v - e0) / (e1 - e0), 0, 1); return k * k * (3 - 2 * k); };
+  const L = (() => { const v = [0.55, 0.7, 0.45], n = Math.hypot(...v); return v.map((c) => c / n); })();   // the fire is off to the right
+
+  // the bottom: where the rim of the heap meets the glass, and how tall it is
+  const bottomEnd = at(vBot, BOT_END);
+  function heapOf(vb) {
+    const cone = (dr) => { const w = hw(dr, false); return w * w * Math.min(REPOSE * w, dr - 8) / 3; };
+    let lo = 10, hi = BOT_END;                     // more sand: the rim stands higher (nearer the neck)
+    for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (bottomEnd - at(vBot, m) + cone(m) > vb) lo = m; else hi = m; }
+    const dr = (lo + hi) / 2, w = hw(dr, false);
+    return { dr, w, h: Math.max(0, Math.min(REPOSE * w, dr - 8)) };
+  }
+  function shapeOf(f) {
     const vt = TOTAL * f, vb = TOTAL - vt;
-    const dTop = levelTop(vt), dBot = levelBot(vb);
-    x.save(); glassPath(x, 1.2); x.clip();
-    // top: a level surface that sinks into a funnel over the neck as it drains
-    if (f > 0.002) {
-      const y0 = NECK[1] - dTop, w = hw(dTop, true), dip = running ? Math.min(dTop * 0.55, 3 + (1 - f) * 7) : 0;
-      const g = x.createLinearGradient(0, y0 - 2, 0, NECK[1]); g.addColorStop(0, sandA); g.addColorStop(1, sandB);
-      x.fillStyle = g; x.beginPath();
-      x.moveTo(NECK[0] - w - 2, y0);
-      x.quadraticCurveTo(NECK[0] - w * 0.4, y0 + dip * 0.15, NECK[0], y0 + dip);
-      x.quadraticCurveTo(NECK[0] + w * 0.4, y0 + dip * 0.15, NECK[0] + w + 2, y0);
-      x.lineTo(NECK[0] + 60, NECK[1] + 1); x.lineTo(NECK[0] - 60, NECK[1] + 1); x.closePath(); x.fill();
-      x.fillStyle = 'rgba(255,240,240,.18)'; x.beginPath(); x.ellipse(NECK[0], y0 + dip * 0.4, w * 0.7, 1.6, 0, 0, 6.3); x.fill();
+    const top = vt > TOTAL * 0.0015 ? (() => {
+      const dl = levelTop(vt), w = hw(dl, true);
+      // the funnel: a dimple at first, widening and deepening as the top empties
+      const drain = clamp((1 - f) * 120, 0, 1);
+      const D = Math.min(dl - 0.6, 2 + 10 * (1 - f)) * drain;
+      const Rc = w * (0.5 + 0.5 * smooth(34, 6, dl));
+      return { y: NECK[1] - dl, w, D, Rc };
+    })() : null;
+    const bot = vb > TOTAL * 0.0015 ? (() => { const hp = heapOf(vb); return { y: NECK[1] + hp.dr, w: hp.w, h: hp.h, a: hp.w * 0.14 }; })() : null;
+    return { top, bot };
+  }
+  // surface height (stage y) at radius r
+  const topY = (s, r) => s.y + (r < s.Rc ? s.D * Math.pow(1 - r / s.Rc, 1.4) : 0);
+  const botY = (s, r) => { const a = s.a, R = Math.sqrt(s.w * s.w + a * a) - a; return s.y - s.h * Math.max(0, 1 - (Math.sqrt(r * r + a * a) - a) / R); };
+
+  // the grain: fixed per pixel, made once
+  const NW = BW * K, NH = BH * K, grainOf = new Float32Array(NW * NH);
+  for (let j = 0; j < NH; j++) for (let i = 0; i < NW; i++) {
+    const g = hash(i, j), sp = hash(j * 7 + 3, i * 13 + 1);
+    grainOf[j * NW + i] = (1 + (g - 0.5) * 0.1) * (sp > 0.965 ? 1.12 : sp < 0.03 ? 0.84 : 1);
+  }
+  const sandCache = new Map();
+  // (the glass drains 1/2400 of its sand a second: redrawing the sand once a
+  // second is as smooth as the eye can tell, and costs a few ms)
+  const STEPS = 2400;
+  function sandLayer(f) {
+    const key = Math.round(f * STEPS);
+    let cv = sandCache.get(key);
+    if (cv) return cv;
+    cv = document.createElement('canvas'); cv.width = NW; cv.height = NH;
+    const cx = cv.getContext('2d'), im = cx.createImageData(NW, NH), px = im.data;
+    const shape = shapeOf(key / STEPS);
+    const [lr, lg, lb] = sandLit, [br, bg, bb] = sandBody, [dr, dg, db] = sandDeep;
+    for (let j = 0; j < NH; j++) {
+      const y = BY + (j + 0.5) / K, top = y < NECK[1], s = top ? shape.top : shape.bot;
+      if (!s) continue;
+      const g = hw(Math.abs(y - NECK[1]), top), surf = top ? topY : botY, yRim = s.y;
+      if (top && y > NECK[1] + 0.5) continue;
+      const i0 = Math.max(0, Math.floor((NECK[0] - g - 1 - BX) * K)), i1 = Math.min(NW - 1, Math.ceil((NECK[0] + g + 1 - BX) * K));
+      const depthTop = Math.max(4, NECK[1] - yRim), depthBot = Math.max(4, NECK[1] + BOT_END - yRim);
+      for (let i = i0; i <= i1; i++) {
+        const x = BX + (i + 0.5) / K, u = x - NECK[0], au = Math.abs(u);
+        if (au > g + 0.5) continue;
+        const half = au < s.w ? Math.sqrt(s.w * s.w - u * u) : 0;
+        const yFront = yRim + TILT * half;
+        let r0, g0, b0, m, alpha, cover = 1;
+        if (y >= yFront || (au >= s.w && y >= yRim)) {
+          // the side of the sand, against the glass: darker toward the walls and toward the neck / foot
+          const depth = top ? clamp((y - yFront) / depthTop, 0, 1) : clamp((y - yRim) / depthBot, 0, 1);
+          const k = 0.15 + 0.5 * depth, a = au / Math.max(1, g);
+          r0 = br + (dr - br) * k; g0 = bg + (dg - bg) * k; b0 = bb + (db - bb) * k;
+          m = (1 - 0.22 * a * a * a) * (1 + 0.05 * (u / Math.max(1, g)));
+          alpha = 0.95;
+        } else if (au < s.w) {
+          // the surface: walk from the front of the ring to the back and take the first point the eye meets
+          const N = 18; let prevV = half, prevY = surf(s, s.w) + TILT * half, hitV = null, minY = prevY;
+          for (let q = 1; q <= N; q++) {
+            const v = half - (2 * half * q) / N, yy = surf(s, Math.sqrt(u * u + v * v)) + TILT * v;
+            if (yy < minY) minY = yy;
+            if (yy <= y) { const t = (prevY - y) / Math.max(1e-6, prevY - yy); hitV = prevV + (v - prevV) * t; break; }
+            prevV = v; prevY = yy;
+          }
+          if (hitV === null) { if (y < minY - 0.5) continue; hitV = 0; cover = clamp((y - minY) * K + 0.5, 0, 1); }
+          const r = Math.max(0.01, Math.sqrt(u * u + hitV * hitV)), e = 0.4;
+          const slope = (surf(s, r + e) - surf(s, Math.max(0, r - e))) / (2 * e);   // +: the surface drops (screen y grows) outward
+          // lit by the fire: the normal of a surface of revolution falling by `slope` per px outward
+          const nx = slope * u / r, nz = slope * hitV / r, nn = Math.sqrt(nx * nx + 1 + nz * nz);
+          const lit = Math.max(0, (nx * L[0] + L[1] + nz * L[2]) / nn), shade = 0.74 + 0.34 * lit;
+          r0 = lr * shade; g0 = lg * shade; b0 = lb * shade;
+          // a soft lighter rim where the surface meets the glass
+          m = 1 + (s.w > 3 ? smooth(0.82, 1, au / s.w) * 0.06 : 0);
+          alpha = 0.97;
+        } else continue;
+        m *= grainOf[j * NW + i];
+        // clear at the glass, so the wall and its shine sit in front of the sand
+        const wall = g - au;
+        alpha *= (0.55 + 0.45 * smooth(0, 3.5, wall)) * clamp(wall * K + 0.5, 0, 1) * cover;
+        if (top && y > NECK[1] - 1.5) alpha *= 0.85;
+        const o = (j * NW + i) * 4;
+        px[o] = r0 * m; px[o + 1] = g0 * m; px[o + 2] = b0 * m; px[o + 3] = alpha * 255;
+      }
     }
-    // bottom: a heap, highest under the stream
-    if (f < 0.998) {
-      const yL = NECK[1] + dBot, w = hw(dBot, false), heap = Math.min(16, (BOT_END - dBot) * 0.55 + 2);
-      const g = x.createLinearGradient(0, yL - heap, 0, NECK[1] + BOT_END); g.addColorStop(0, sandA); g.addColorStop(1, sandB);
-      x.fillStyle = g; x.beginPath();
-      x.moveTo(NECK[0] - w - 4, yL + heap * 0.35);
-      x.quadraticCurveTo(NECK[0] - w * 0.35, yL - heap * 0.45, NECK[0], yL - heap * 0.65);
-      x.quadraticCurveTo(NECK[0] + w * 0.35, yL - heap * 0.45, NECK[0] + w + 4, yL + heap * 0.35);
-      x.lineTo(NECK[0] + 70, NECK[1] + BOT_END + 2); x.lineTo(NECK[0] - 70, NECK[1] + BOT_END + 2); x.closePath(); x.fill();
-      x.fillStyle = 'rgba(255,240,240,.16)'; x.beginPath(); x.ellipse(NECK[0] - w * 0.15, yL - heap * 0.3, w * 0.45, 1.4, -0.05, 0, 6.3); x.fill();
+    cx.putImageData(im, 0, 0);
+    if (sandCache.size > 4) sandCache.delete(sandCache.keys().next().value);
+    sandCache.set(key, cv);
+    return cv;
+  }
+
+  // f: the share of the sand still in the top bulb
+  let prefetching = -1;
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 30));
+  function drawSand(x, f, running, t) {
+    x.drawImage(sandLayer(f), BX, BY, BW, BH);
+    // draw the next second's sand while the page is idle, so a frame never waits for it
+    const next = Math.round(f * STEPS) - 1;
+    if (running && next >= 0 && !sandCache.has(next) && prefetching !== next) {
+      prefetching = next;
+      idle(() => { sandLayer(next / STEPS); prefetching = -1; });
     }
     // the stream through the neck, and the grains landing on the heap
-    if (running && f > 0.002) {
-      const yHit = NECK[1] + dBot - Math.min(16, (BOT_END - dBot) * 0.55 + 2) * 0.65;
-      x.strokeStyle = sandA; x.globalAlpha = 0.85 + 0.15 * Math.sin(t * 40); x.lineWidth = 1.1;
-      x.beginPath(); x.moveTo(NECK[0], NECK[1] - 2); x.lineTo(NECK[0] + Math.sin(t * 23) * 0.15, yHit); x.stroke();
-      x.globalAlpha = 1; x.fillStyle = sandA;
+    if (running && f > 0.0015) {
+      const s = shapeOf(f).bot, yHit = s ? botY(s, 0) : NECK[1] + BOT_END - 2;
+      const [r, g, b] = sandLit;
+      x.strokeStyle = `rgba(${r},${g},${b},${0.75 + 0.15 * Math.sin(t * 40)})`; x.lineWidth = 0.9;
+      x.beginPath(); x.moveTo(NECK[0], NECK[1] - 1.5); x.lineTo(NECK[0] + Math.sin(t * 23) * 0.12, yHit + 0.5); x.stroke();
+      x.fillStyle = `rgb(${r},${g},${b})`;
       for (let i = 0; i < 5; i++) {
-        const k = ((t * 3.1 + i * 0.37) % 1), dx = Math.sin(i * 12.9 + Math.floor(t * 3.1 + i * 0.37) * 7.7) * 5 * k;
-        x.globalAlpha = 1 - k; x.fillRect(NECK[0] + dx - 0.4, yHit - Math.sin(k * Math.PI) * 2.2, 0.8, 0.8);
+        const k = ((t * 3.1 + i * 0.37) % 1), dx = Math.sin(i * 12.9 + Math.floor(t * 3.1 + i * 0.37) * 7.7) * 4 * k;
+        x.globalAlpha = 0.8 * (1 - k); x.fillRect(NECK[0] + dx - 0.35, yHit + Math.abs(dx) * REPOSE - Math.sin(k * Math.PI) * 2, 0.7, 0.7);
       }
       x.globalAlpha = 1;
     }
-    x.restore();
     x.drawImage(shine, CX0, CY0);
   }
 

@@ -1,11 +1,11 @@
 import { loadSettings, saveSettings, works, newWork, writePending, readPending } from './store.js';
 import { audio } from './audio.js';
-import { createScene } from './scene.js';
+import { createScene } from './scene.js?v=2';
 import { createTypewriter } from './typewriter.js';
 import { createInk } from './ink.js';
 import { PLACES, PLACE_ORDER } from './places.js';
 import { createReader } from './reader.js?v=2';
-import { GLASS_MS } from './hourglass.js';
+import { GLASS_MS } from './hourglass.js?v=2';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -92,6 +92,9 @@ function syncGlass() {
   chip.hidden = !running && !done;
   chip.classList.toggle('done', done);
   $('#timerText').textContent = done ? 'Time’s up' : mmss(left);
+  // the same countdown stays in view in full screen (shown only there, by the CSS)
+  $('#sceneTimer').hidden = !running && !done;
+  $('#sceneTimerText').textContent = done ? 'Time’s up' : mmss(left);
   $('#glassLeft').textContent = running ? mmss(left) : done ? 'Time’s up' : '40:00';
   $('#glassMeta').textContent = running ? 'left of forty minutes' : done ? 'The sand has run through' : 'Turn it over for forty minutes';
   $('#glassStop').disabled = !running && !done;

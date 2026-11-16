@@ -306,6 +306,18 @@ button { cursor: pointer; background: none; border: 0; padding: 0; }
   opacity: 0; transition: opacity .6s ease; pointer-events: none;
 }
 #sceneVeil.awake .scene-hint { opacity: 1; }
+/* the hourglass countdown in full screen: quiet, top right, and never in the
+   way of the click that brings the controls back */
+.scene-timer {
+  position: fixed; top: calc(18px + env(safe-area-inset-top)); right: calc(22px + env(safe-area-inset-right)); z-index: 91;
+  display: none; align-items: center; gap: 6px; padding: 8px 13px; border-radius: 999px; pointer-events: none;
+  font-size: 11px; letter-spacing: .13em; text-transform: uppercase; font-variant-numeric: tabular-nums; color: var(--ink);
+  border: 1px solid var(--gold-line); background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  opacity: .72; white-space: nowrap;
+}
+.scene-timer .glass-ico { color: var(--gold); font-size: 13px; letter-spacing: 0; }
+.scene-only .scene-timer:not([hidden]) { display: inline-flex; }
+@media (max-width: 720px) { .scene-timer { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); padding: 7px 10px; } }
 .group { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 .group.center { justify-content: center; flex: 0 0 auto; }
 .group.right { justify-content: flex-end; }

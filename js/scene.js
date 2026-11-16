@@ -5,7 +5,7 @@ import { PLACES, placeOf } from './places.js';
 import { createSeaside } from './seaside.js';
 import { createLibrary } from './library.js';
 import { createHearth } from './hearth.js';
-import { createHourglass, GLASS_MS } from './hourglass.js';
+import { createHourglass, GLASS_MS } from './hourglass.js?v=2';
 
 const W = 1672, H = 941;
 const $ = (s) => document.querySelector(s);
